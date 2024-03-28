@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QR Scanner</title>
+  <style>
+    /* QR code styling */
+    #qrCanvas {
+      width: 300px;
+      height: 300px;
+      margin-bottom: 20px;
+    }
+    /* Styling for result display */
+    #qrResult {
+      margin-bottom: 20px;
+    }
+    /* Styling for buttons */
+    .btn {
+      padding: 8px 16px;
+      margin-right: 10px;
+      background-color: #007bff;
+      color: #fff;
+      border: none;
+      cursor: pointer;
+    }
+    /* Styling for video element */
+    #video {
+      width: 100%;
+      max-width: 300px;
+      margin-bottom: 20px;
+    }
+  </style>
+</head>
+<body>
+  <video id="video" playsinline autoplay></video>
+  <canvas id="qrCanvas" style="display: none;"></canvas>
+  <div id="qrResult"></div>
+  <button id="scanButton" class="btn">Scan QR Code</button>
+  <button id="downloadButton" class="btn">Download Excel</button>
+  <a id="downloadLink" style="display: none;"></a>
+  <!-- QRious library script -->
+  <script src="https://cdn.jsdelivr.net/npm/qrious"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jsqr"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const qrCanvas = document.getElementById('qrCanvas');
+      const qrResultDiv = document.getElementById('qrResult');
+      const downloadLink = document.getElementById('downloadLink');
+      const scanButton = document.getElementById('scanButton');
+      const downloadButton = document.getElementById('downloadButton');
+      const video = document.getElementById('video');
+      let scannedData = []; // Array to store scanned objects
+
+      const qr = new QRious({
+        element: qrCanvas,
+        size: 300
+      });
+
+      const scanQRCode = async () => {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+          video.srcObject = stream;
+          const track = stream.getVideoTracks()[0];
+          const imageCapture = new ImageCapture(track);
+          
+          const scanInterval = setInterval(async () => {
+            const imageBitmap = await imageCapture.grabFrame();
+            qrResultDiv.innerHTML = ''; // Clear previous result
+            const canvas = document.createElement('canvas');
+            canvas.width = qrCanvas.width;
+            canvas.height = qrCanvas.height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const code = jsQR(imageData.data, imageData.width, imageData.height);
+            if (code) {
+              clearInterval(scanInterval);
+              const scannedObject = { id: scannedData.length + 1, code: code.data };
+              console.log(scannedObject,code,imageData,"hi code")
+              qrResultDiv.innerHTML = `
+                <p><strong>ID:</strong> ${scannedObject.id}</p>
+                <p><strong>QR Code:</strong> ${scannedObject.code}</p>
+              `;
+              scannedData.push(scannedObject);
+            }
+          }, 500); // Reduced interval for smoother scanning
+        } catch (error) {
+          console.error('Error accessing camera:', error);
+        }
+      };
+
+      scanButton.addEventListener('click', scanQRCode);
+
+      downloadButton.addEventListener('click', () => {
+        // Prepare data for Excel
+        const excelData = 'ID, QR Code\n' +
+          scannedData.map(obj => `${obj.id}, ${obj.code}`).join('\n');
+        const dataUri = 'data:text/csv;charset=utf-8,' + encodeURIComponent(excelData);
+        downloadLink.setAttribute('href', dataUri);
+        downloadLink.setAttribute('download', 'scanned_data.csv');
+        downloadLink.click();
+      });
+    });
+  </script>
+</body>
+</html>
